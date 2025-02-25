@@ -1,1 +1,50 @@
+#!/bin/bash
 
+# 定义变量
+SCRIPT_PATH="/root/restart_nginx.sh"
+LOG_FILE="/var/log/restart_nginx.log"
+CRON_JOB="* * * * * /root/restart_nginx.sh"
+
+echo "Starting setup for automatic Nginx monitoring and restart..."
+
+# 创建 restart_nginx.sh 脚本
+echo "Creating $SCRIPT_PATH..."
+cat << 'EOF' > $SCRIPT_PATH
+#!/bin/bash
+
+# 检查 Nginx 是否正在运行
+if ! pgrep -x "nginx" > /dev/null
+then
+    echo "$(date): Nginx is not running. Attempting to restart..." >> /var/log/restart_nginx.log
+    # 尝试重启 Nginx
+    systemctl restart nginx
+    if [ $? -eq 0 ]; then
+        echo "$(date): Nginx restarted successfully." >> /var/log/restart_nginx.log
+    else
+        echo "$(date): Failed to restart Nginx!" >> /var/log/restart_nginx.log
+    fi
+else
+    echo "$(date): Nginx is running." >> /var/log/restart_nginx.log
+fi
+EOF
+
+# 为脚本添加执行权限
+echo "Setting execute permissions for $SCRIPT_PATH..."
+chmod +x $SCRIPT_PATH
+
+# 创建日志文件并设置权限
+echo "Creating log file $LOG_FILE..."
+touch $LOG_FILE
+chmod 664 $LOG_FILE
+chown $USER:$USER $LOG_FILE
+
+# 添加定时任务到 crontab
+echo "Adding crontab job..."
+(crontab -l 2>/dev/null; echo "$CRON_JOB") | crontab -
+
+# 确保 cron 服务正在运行
+echo "Restarting and enabling cron service..."
+systemctl restart cron
+systemctl enable cron
+
+echo "Setup complete. The script will now monitor and restart Nginx if it stops."
